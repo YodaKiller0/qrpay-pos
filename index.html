@@ -1,0 +1,718 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+<meta name="theme-color" content="#0a0f1e"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="description" content="QR Pay POS – Zero fee payments for Sri Lanka"/>
+<title>QR Pay POS</title>
+<link rel="manifest" href="manifest.json"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Sora:wght@300;400;600;700&display=swap" rel="stylesheet"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+  :root {
+    --bg: #07090f;
+    --surface: #0d1220;
+    --surface2: #131929;
+    --border: rgba(255,255,255,0.07);
+    --accent: #00e5a0;
+    --accent2: #5b7fff;
+    --accent3: #f7a94b;
+    --text: #eef1ff;
+    --muted: #6b7a99;
+    --danger: #ff4f6a;
+    --lp: #00e5a0;
+    --frimi: #7c3aed;
+    --crypto: #f7a94b;
+    --radius: 18px;
+    --font: 'Sora', sans-serif;
+    --mono: 'Space Mono', monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--font); overscroll-behavior: none; }
+
+  /* Noise texture overlay */
+  body::before {
+    content: '';
+    position: fixed; inset: 0; z-index: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+  }
+
+  #app { position: relative; z-index: 1; max-width: 430px; margin: 0 auto; min-height: 100vh; display: flex; flex-direction: column; }
+
+  /* Header */
+  header {
+    padding: 20px 24px 16px;
+    display: flex; align-items: center; justify-content: space-between;
+    border-bottom: 1px solid var(--border);
+  }
+  .logo { display: flex; align-items: center; gap: 10px; }
+  .logo-icon {
+    width: 36px; height: 36px; border-radius: 10px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+  }
+  .logo-text { font-weight: 700; font-size: 1.1rem; letter-spacing: -0.02em; }
+  .logo-text span { color: var(--accent); }
+  .header-right { font-family: var(--mono); font-size: 0.7rem; color: var(--muted); text-align: right; line-height: 1.4; }
+
+  /* Tabs */
+  .tabs {
+    display: flex; padding: 16px 24px 0; gap: 8px;
+  }
+  .tab {
+    flex: 1; padding: 10px 8px; border-radius: 12px; border: 1px solid var(--border);
+    background: transparent; color: var(--muted); font-family: var(--font); font-size: 0.8rem;
+    font-weight: 600; cursor: pointer; transition: all 0.2s; text-align: center;
+  }
+  .tab.active { background: var(--surface2); color: var(--text); border-color: var(--accent2); }
+
+  /* Main content */
+  main { flex: 1; padding: 20px 24px; overflow-y: auto; }
+
+  /* Section */
+  .section { display: none; }
+  .section.active { display: block; }
+
+  /* Amount input */
+  .amount-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 24px; margin-bottom: 16px;
+  }
+  .amount-label { font-size: 0.72rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin-bottom: 12px; }
+  .amount-display {
+    display: flex; align-items: baseline; gap: 8px; margin-bottom: 4px;
+  }
+  .currency { font-family: var(--mono); font-size: 1.4rem; color: var(--muted); }
+  .amount-input {
+    background: none; border: none; outline: none; color: var(--text);
+    font-family: var(--mono); font-size: 3rem; font-weight: 700; width: 100%;
+    caret-color: var(--accent); letter-spacing: -0.02em;
+  }
+  .amount-input::placeholder { color: var(--border); }
+  .amount-divider { height: 1px; background: var(--border); margin: 16px 0; }
+  .desc-input {
+    background: none; border: none; outline: none; color: var(--muted);
+    font-family: var(--font); font-size: 0.9rem; width: 100%;
+  }
+  .desc-input::placeholder { color: var(--border); }
+
+  /* Method selector */
+  .method-label { font-size: 0.72rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin-bottom: 12px; }
+  .methods { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; }
+  .method-btn {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+    padding: 16px; display: flex; align-items: center; gap: 14px; cursor: pointer;
+    transition: all 0.2s; text-align: left; width: 100%;
+  }
+  .method-btn:active { transform: scale(0.98); }
+  .method-btn.selected { border-color: currentColor; }
+  .method-btn.lp { color: var(--lp); }
+  .method-btn.lp.selected { background: rgba(0,229,160,0.06); }
+  .method-btn.frimi { color: var(--frimi); }
+  .method-btn.frimi.selected { background: rgba(124,58,237,0.06); }
+  .method-btn.crypto { color: var(--crypto); }
+  .method-btn.crypto.selected { background: rgba(247,169,75,0.06); }
+  .method-icon { font-size: 1.5rem; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.04); border-radius: 10px; flex-shrink: 0; }
+  .method-info { flex: 1; }
+  .method-name { font-size: 0.95rem; font-weight: 600; color: var(--text); }
+  .method-desc { font-size: 0.75rem; color: var(--muted); margin-top: 2px; }
+  .method-check { width: 20px; height: 20px; border-radius: 50%; border: 2px solid currentColor; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 0.7rem; }
+  .method-btn.selected .method-check { background: currentColor; color: var(--bg); }
+
+  /* Wallet address input */
+  .wallet-setup { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 16px; }
+  .wallet-setup h3 { font-size: 0.85rem; font-weight: 600; color: var(--text); margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
+  .wallet-row { margin-bottom: 12px; }
+  .wallet-row:last-child { margin-bottom: 0; }
+  .wallet-row label { font-size: 0.72rem; color: var(--muted); display: block; margin-bottom: 6px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; }
+  .wallet-row input {
+    width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: 10px;
+    padding: 10px 14px; color: var(--text); font-family: var(--mono); font-size: 0.8rem; outline: none;
+    transition: border-color 0.2s;
+  }
+  .wallet-row input:focus { border-color: var(--accent2); }
+  .wallet-row input::placeholder { color: var(--muted); }
+
+  /* Generate button */
+  .btn-generate {
+    width: 100%; padding: 18px; border-radius: 14px; border: none; cursor: pointer;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    color: #07090f; font-family: var(--font); font-size: 1rem; font-weight: 700;
+    letter-spacing: -0.01em; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 10px;
+  }
+  .btn-generate:active { transform: scale(0.98); opacity: 0.9; }
+  .btn-generate:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* QR Modal */
+  .modal-overlay {
+    position: fixed; inset: 0; z-index: 100;
+    background: rgba(7,9,15,0.9); backdrop-filter: blur(12px);
+    display: flex; align-items: flex-end; justify-content: center;
+    opacity: 0; pointer-events: none; transition: opacity 0.3s;
+  }
+  .modal-overlay.open { opacity: 1; pointer-events: all; }
+  .modal {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 24px 24px 0 0; padding: 28px 24px 40px; width: 100%; max-width: 430px;
+    transform: translateY(100%); transition: transform 0.35s cubic-bezier(0.34,1.56,0.64,1);
+  }
+  .modal-overlay.open .modal { transform: translateY(0); }
+  .modal-handle { width: 40px; height: 4px; background: var(--border); border-radius: 2px; margin: 0 auto 24px; }
+  .modal-header { text-align: center; margin-bottom: 24px; }
+  .modal-method-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 14px; border-radius: 20px; font-size: 0.75rem; font-weight: 600;
+    margin-bottom: 10px;
+  }
+  .modal-amount { font-family: var(--mono); font-size: 2.4rem; font-weight: 700; letter-spacing: -0.03em; }
+  .modal-desc { font-size: 0.85rem; color: var(--muted); margin-top: 4px; }
+
+  /* QR Code */
+  .qr-wrapper {
+    background: #fff; border-radius: 16px; padding: 20px;
+    width: fit-content; margin: 0 auto 24px; display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 0 40px rgba(0,229,160,0.15);
+  }
+  #qrcode { display: flex; }
+
+  /* Action buttons */
+  .modal-actions { display: flex; gap: 12px; }
+  .btn-share {
+    flex: 1; padding: 14px; border-radius: 12px; border: 1px solid var(--border);
+    background: var(--surface2); color: var(--text); font-family: var(--font);
+    font-size: 0.9rem; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  .btn-close {
+    flex: 1; padding: 14px; border-radius: 12px; border: none;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    color: #07090f; font-family: var(--font); font-size: 0.9rem; font-weight: 700; cursor: pointer;
+  }
+
+  /* Timer */
+  .timer-bar-wrap { margin-bottom: 16px; }
+  .timer-label { font-size: 0.72rem; color: var(--muted); margin-bottom: 6px; font-family: var(--mono); display: flex; justify-content: space-between; }
+  .timer-bar { height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; }
+  .timer-fill { height: 100%; background: var(--accent); border-radius: 2px; transition: width 1s linear, background 1s; }
+
+  /* History */
+  .history-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+  .history-header h2 { font-size: 1rem; font-weight: 700; }
+  .clear-btn { font-size: 0.75rem; color: var(--danger); background: none; border: none; cursor: pointer; font-family: var(--font); font-weight: 600; }
+  .tx-list { display: flex; flex-direction: column; gap: 10px; }
+  .tx-item {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 16px;
+    display: flex; align-items: center; gap: 14px;
+  }
+  .tx-icon { width: 38px; height: 38px; border-radius: 10px; background: var(--surface2); display: flex; align-items: center; justify-content: center; font-size: 1.1rem; flex-shrink: 0; }
+  .tx-info { flex: 1; min-width: 0; }
+  .tx-desc { font-size: 0.85rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tx-meta { font-size: 0.72rem; color: var(--muted); margin-top: 2px; }
+  .tx-amount { font-family: var(--mono); font-size: 0.95rem; font-weight: 700; text-align: right; flex-shrink: 0; }
+  .empty-state { text-align: center; padding: 60px 0; color: var(--muted); }
+  .empty-state .empty-icon { font-size: 3rem; margin-bottom: 12px; opacity: 0.4; }
+  .empty-state p { font-size: 0.9rem; }
+
+  /* Settings */
+  .settings-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 16px; }
+  .settings-card h3 { font-size: 0.75rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin-bottom: 16px; }
+  .setting-row { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+  .setting-row:last-child { margin-bottom: 0; }
+  .setting-label { flex: 1; font-size: 0.9rem; font-weight: 600; }
+  .setting-sub { font-size: 0.75rem; color: var(--muted); margin-top: 2px; }
+  .setting-input {
+    background: var(--surface2); border: 1px solid var(--border); border-radius: 10px;
+    padding: 8px 12px; color: var(--text); font-family: var(--mono); font-size: 0.8rem; outline: none;
+    width: 160px; transition: border-color 0.2s;
+  }
+  .setting-input:focus { border-color: var(--accent2); }
+  .save-btn {
+    width: 100%; padding: 14px; border-radius: 12px; border: none; cursor: pointer;
+    background: var(--surface2); border: 1px solid var(--border); color: var(--text);
+    font-family: var(--font); font-size: 0.9rem; font-weight: 600; transition: all 0.2s; margin-top: 4px;
+  }
+  .save-btn:active { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+
+  /* Toast */
+  .toast {
+    position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%) translateY(20px);
+    background: var(--surface2); border: 1px solid var(--border); border-radius: 30px;
+    padding: 10px 20px; font-size: 0.85rem; font-weight: 600; z-index: 200;
+    opacity: 0; transition: all 0.3s; pointer-events: none; white-space: nowrap;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* Nav */
+  nav {
+    display: flex; border-top: 1px solid var(--border); background: rgba(13,18,32,0.95);
+    backdrop-filter: blur(12px); position: sticky; bottom: 0; z-index: 50;
+  }
+  .nav-btn {
+    flex: 1; padding: 14px 8px 20px; display: flex; flex-direction: column; align-items: center;
+    gap: 4px; background: none; border: none; cursor: pointer; transition: color 0.2s;
+    color: var(--muted); font-family: var(--font); font-size: 0.65rem; font-weight: 600;
+    letter-spacing: 0.05em; text-transform: uppercase;
+  }
+  .nav-btn.active { color: var(--accent); }
+  .nav-btn svg { width: 22px; height: 22px; }
+
+  /* Crypto sub-selector */
+  .crypto-coins { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+  .coin-btn {
+    padding: 6px 14px; border-radius: 20px; border: 1px solid var(--border);
+    background: var(--surface2); color: var(--muted); font-family: var(--mono);
+    font-size: 0.75rem; font-weight: 700; cursor: pointer; transition: all 0.2s;
+  }
+  .coin-btn.selected { background: rgba(247,169,75,0.1); border-color: var(--crypto); color: var(--crypto); }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="logo">
+      <div class="logo-icon">⚡</div>
+      <div class="logo-text">QR<span>Pay</span></div>
+    </div>
+    <div class="header-right">
+      <div>Zero Fees</div>
+      <div>🇱🇰 Sri Lanka</div>
+    </div>
+  </header>
+
+  <div class="tabs">
+    <button class="tab active" onclick="showSection('pay')">Pay</button>
+    <button class="tab" onclick="showSection('history')">History</button>
+    <button class="tab" onclick="showSection('settings')">Settings</button>
+  </div>
+
+  <main>
+    <!-- PAY SECTION -->
+    <div class="section active" id="section-pay">
+      <div class="amount-card">
+        <div class="amount-label">Amount</div>
+        <div class="amount-display">
+          <span class="currency">Rs.</span>
+          <input class="amount-input" id="amountInput" type="number" inputmode="decimal" placeholder="0.00" min="0"/>
+        </div>
+        <div class="amount-divider"></div>
+        <input class="desc-input" id="descInput" type="text" placeholder="Note (e.g. Table 4, Invoice #12)"/>
+      </div>
+
+      <div class="method-label">Payment Method</div>
+      <div class="methods">
+        <button class="method-btn lp selected" onclick="selectMethod('lankaPay')">
+          <div class="method-icon">🏦</div>
+          <div class="method-info">
+            <div class="method-name">LankaPay / Bank QR</div>
+            <div class="method-desc">All local banks · CEFTS · Zero fees</div>
+          </div>
+          <div class="method-check">✓</div>
+        </button>
+        <button class="method-btn frimi" onclick="selectMethod('frimi')">
+          <div class="method-icon">📱</div>
+          <div class="method-info">
+            <div class="method-name">FriMi / Sampath / BOC</div>
+            <div class="method-desc">Mobile wallet apps · Instant</div>
+          </div>
+          <div class="method-check">✓</div>
+        </button>
+        <button class="method-btn crypto" onclick="selectMethod('crypto')">
+          <div class="method-icon">₿</div>
+          <div class="method-info">
+            <div class="method-name">Crypto (USDT / BTC)</div>
+            <div class="method-desc">Binance Pay · On-chain wallets</div>
+          </div>
+          <div class="method-check">✓</div>
+        </button>
+      </div>
+
+      <!-- Crypto coin selector (shown only for crypto) -->
+      <div id="cryptoCoins" style="display:none; margin-bottom:16px;">
+        <div class="method-label">Coin</div>
+        <div class="crypto-coins">
+          <button class="coin-btn selected" onclick="selectCoin('USDT')">USDT</button>
+          <button class="coin-btn" onclick="selectCoin('BTC')">BTC</button>
+          <button class="coin-btn" onclick="selectCoin('ETH')">ETH</button>
+          <button class="coin-btn" onclick="selectCoin('BNB')">BNB</button>
+        </div>
+      </div>
+
+      <button class="btn-generate" id="generateBtn" onclick="generateQR()">
+        <span>⚡</span> Generate QR Code
+      </button>
+    </div>
+
+    <!-- HISTORY SECTION -->
+    <div class="section" id="section-history">
+      <div class="history-header">
+        <h2>Transactions</h2>
+        <button class="clear-btn" onclick="clearHistory()">Clear All</button>
+      </div>
+      <div class="tx-list" id="txList"></div>
+    </div>
+
+    <!-- SETTINGS SECTION -->
+    <div class="section" id="section-settings">
+      <div class="settings-card">
+        <h3>🏦 LankaPay / Bank</h3>
+        <div class="setting-row">
+          <div class="setting-info" style="flex:1">
+            <div class="setting-label">Account Name</div>
+            <div class="setting-sub">Your name or business name</div>
+          </div>
+          <input class="setting-input" id="set-acname" placeholder="My Shop"/>
+        </div>
+        <div class="setting-row">
+          <div class="setting-info" style="flex:1">
+            <div class="setting-label">Account Number</div>
+          </div>
+          <input class="setting-input" id="set-acnum" placeholder="1234567890"/>
+        </div>
+        <div class="setting-row">
+          <div class="setting-info" style="flex:1">
+            <div class="setting-label">Bank Code</div>
+            <div class="setting-sub">e.g. 7083 = Commercial Bank</div>
+          </div>
+          <input class="setting-input" id="set-bankcode" placeholder="7083"/>
+        </div>
+      </div>
+
+      <div class="settings-card">
+        <h3>📱 Mobile Wallet / FriMi</h3>
+        <div class="setting-row">
+          <div class="setting-info" style="flex:1">
+            <div class="setting-label">Phone / Wallet ID</div>
+            <div class="setting-sub">Registered mobile number</div>
+          </div>
+          <input class="setting-input" id="set-wallet" placeholder="07XXXXXXXX"/>
+        </div>
+        <div class="setting-row">
+          <div class="setting-info" style="flex:1">
+            <div class="setting-label">Wallet Name</div>
+          </div>
+          <input class="setting-input" id="set-walletname" placeholder="FriMi"/>
+        </div>
+      </div>
+
+      <div class="settings-card">
+        <h3>₿ Crypto Addresses</h3>
+        <div class="setting-row">
+          <div class="setting-info" style="flex:1">
+            <div class="setting-label">USDT (TRC20)</div>
+          </div>
+          <input class="setting-input" id="set-usdt" placeholder="TXxxx..."/>
+        </div>
+        <div class="setting-row">
+          <div class="setting-info" style="flex:1">
+            <div class="setting-label">BTC Address</div>
+          </div>
+          <input class="setting-input" id="set-btc" placeholder="bc1q..."/>
+        </div>
+        <div class="setting-row">
+          <div class="setting-info" style="flex:1">
+            <div class="setting-label">ETH Address</div>
+          </div>
+          <input class="setting-input" id="set-eth" placeholder="0x..."/>
+        </div>
+        <div class="setting-row">
+          <div class="setting-info" style="flex:1">
+            <div class="setting-label">BNB Address</div>
+          </div>
+          <input class="setting-input" id="set-bnb" placeholder="bnb1..."/>
+        </div>
+      </div>
+
+      <button class="save-btn" onclick="saveSettings()">💾 Save Settings</button>
+    </div>
+  </main>
+
+  <!-- Nav -->
+  <nav>
+    <button class="nav-btn active" id="nav-pay" onclick="showSection('pay')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="3"/><path d="M2 10h20"/></svg>
+      Pay
+    </button>
+    <button class="nav-btn" id="nav-history" onclick="showSection('history')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 16l4-4 4 4 4-6"/></svg>
+      History
+    </button>
+    <button class="nav-btn" id="nav-settings" onclick="showSection('settings')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      Settings
+    </button>
+  </nav>
+</div>
+
+<!-- QR Modal -->
+<div class="modal-overlay" id="qrModal" onclick="handleModalClick(event)">
+  <div class="modal" id="modalInner">
+    <div class="modal-handle"></div>
+    <div class="modal-header">
+      <div class="modal-method-badge" id="modalBadge"></div>
+      <div class="modal-amount" id="modalAmount"></div>
+      <div class="modal-desc" id="modalDesc"></div>
+    </div>
+    <div class="timer-bar-wrap">
+      <div class="timer-label"><span>QR expires in</span><span id="timerText">5:00</span></div>
+      <div class="timer-bar"><div class="timer-fill" id="timerFill" style="width:100%"></div></div>
+    </div>
+    <div class="qr-wrapper">
+      <div id="qrcode"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-share" onclick="shareQR()">📤 Share</button>
+      <button class="btn-close" onclick="closeModal(); saveTransaction()">✓ Done</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+const SERVER_URL = 'https://qr-pay-v2-production.up.railway.app/';
+let selectedMethod = 'lankaPay';
+let selectedCoin = 'USDT';
+let timerInterval = null;
+let timerSeconds = 300;
+let settings = {};
+let transactions = [];
+
+// Load from localStorage
+function loadData() {
+  try {
+    settings = JSON.parse(localStorage.getItem('qrpay_settings') || '{}');
+    transactions = JSON.parse(localStorage.getItem('qrpay_tx') || '[]');
+    // fill settings inputs
+    for (const [k,v] of Object.entries(settings)) {
+      const el = document.getElementById('set-' + k);
+      if (el) el.value = v;
+    }
+    renderHistory();
+  } catch(e) {}
+}
+
+function saveSettings() {
+  const ids = ['acname','acnum','bankcode','wallet','walletname','usdt','btc','eth','bnb'];
+  const s = {};
+  ids.forEach(id => { s[id] = (document.getElementById('set-' + id) || {}).value || ''; });
+  settings = s;
+  localStorage.setItem('qrpay_settings', JSON.stringify(s));
+  showToast('✓ Settings saved');
+}
+
+function showSection(name) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('section-' + name).classList.add('active');
+  document.querySelectorAll('.tab')[['pay','history','settings'].indexOf(name)].classList.add('active');
+  document.getElementById('nav-' + name).classList.add('active');
+  if (name === 'history') renderHistory();
+}
+
+function selectMethod(m) {
+  selectedMethod = m;
+  document.querySelectorAll('.method-btn').forEach(b => b.classList.remove('selected'));
+  const map = {lankaPay:0, frimi:1, crypto:2};
+  document.querySelectorAll('.method-btn')[map[m]].classList.add('selected');
+  document.getElementById('cryptoCoins').style.display = m === 'crypto' ? 'block' : 'none';
+}
+
+function selectCoin(c) {
+  selectedCoin = c;
+  document.querySelectorAll('.coin-btn').forEach(b => b.classList.remove('selected'));
+  event.target.classList.add('selected');
+}
+
+function buildQRData(amount, desc) {
+  const s = settings;
+  if (selectedMethod === 'lankaPay') {
+    // LankaPay EMV QR format (simplified)
+    const acnum = s.acnum || '0000000000';
+    const bankcode = s.bankcode || '7083';
+    const acname = s.acname || 'My Shop';
+    return `SL.LANKAQR.VERSION.01|BANKCODE:${bankcode}|ACCNUM:${acnum}|NAME:${acname}|AMOUNT:${amount}|NOTE:${desc}`;
+  } else if (selectedMethod === 'frimi') {
+    const wallet = s.wallet || '0700000000';
+    const wname = s.walletname || 'Wallet';
+    return `SLLPE.MOBILE.PAY|WALLET:${wallet}|SERVICE:${wname}|AMOUNT:${amount}|NOTE:${desc}`;
+  } else {
+    const coinAddr = {
+      USDT: s.usdt || 'SET_USDT_ADDRESS',
+      BTC:  s.btc  || 'SET_BTC_ADDRESS',
+      ETH:  s.eth  || 'SET_ETH_ADDRESS',
+      BNB:  s.bnb  || 'SET_BNB_ADDRESS'
+    };
+    const addr = coinAddr[selectedCoin];
+    const coinProto = {USDT:'ethereum',BTC:'bitcoin',ETH:'ethereum',BNB:'binance'}[selectedCoin];
+    return `${coinProto}:${addr}?amount=${amount}&label=${encodeURIComponent(desc)}`;
+  }
+}
+
+function generateQR() {
+  const amount = parseFloat(document.getElementById('amountInput').value);
+  if (!amount || amount <= 0) { showToast('⚠️ Enter a valid amount'); return; }
+  const desc = document.getElementById('descInput').value.trim() || 'Payment';
+
+  const qrData = buildQRData(amount, desc);
+
+  // Set modal content
+  const methodInfo = {
+    lankaPay: {label:'🏦 LankaPay', color:'var(--lp)', bg:'rgba(0,229,160,0.1)'},
+    frimi: {label:'📱 Mobile Wallet', color:'var(--frimi)', bg:'rgba(124,58,237,0.1)'},
+    crypto: {label:`₿ ${selectedCoin}`, color:'var(--crypto)', bg:'rgba(247,169,75,0.1)'}
+  }[selectedMethod];
+
+  const badge = document.getElementById('modalBadge');
+  badge.textContent = methodInfo.label;
+  badge.style.color = methodInfo.color;
+  badge.style.background = methodInfo.bg;
+
+  document.getElementById('modalAmount').textContent = 'Rs. ' + amount.toLocaleString('en-LK', {minimumFractionDigits:2,maximumFractionDigits:2});
+  document.getElementById('modalDesc').textContent = desc;
+
+  // Generate QR
+  const qrEl = document.getElementById('qrcode');
+  qrEl.innerHTML = '';
+  new QRCode(qrEl, {
+    text: qrData,
+    width: 220, height: 220,
+    colorDark: '#07090f',
+    colorLight: '#ffffff',
+    correctLevel: QRCode.CorrectLevel.M
+  });
+
+  // Timer
+  startTimer();
+  document.getElementById('qrModal').classList.add('open');
+}
+
+function startTimer() {
+  clearInterval(timerInterval);
+  timerSeconds = 300;
+  updateTimer();
+  timerInterval = setInterval(() => {
+    timerSeconds--;
+    updateTimer();
+    if (timerSeconds <= 0) { clearInterval(timerInterval); }
+  }, 1000);
+}
+
+function updateTimer() {
+  const m = Math.floor(timerSeconds / 60);
+  const s = timerSeconds % 60;
+  document.getElementById('timerText').textContent = `${m}:${s.toString().padStart(2,'0')}`;
+  const pct = (timerSeconds / 300) * 100;
+  const fill = document.getElementById('timerFill');
+  fill.style.width = pct + '%';
+  fill.style.background = timerSeconds > 60 ? 'var(--accent)' : 'var(--danger)';
+}
+
+function handleModalClick(e) {
+  if (e.target === document.getElementById('qrModal')) closeModal();
+}
+
+function closeModal() {
+  clearInterval(timerInterval);
+  document.getElementById('qrModal').classList.remove('open');
+}
+
+function saveTransaction() {
+  async function saveTransaction() {
+  const amount = parseFloat(document.getElementById('amountInput').value);
+  if (!amount) return;
+  const desc = document.getElementById('descInput').value.trim() || 'Payment';
+
+  try {
+    const response = await fetch(`${SERVER_URL}/api/payment`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        amount: amount,
+        shop: settings.acname || 'My Shop'
+      })
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      transactions.unshift({
+        id: data.transaction_id,
+        amount, desc,
+        method: 'Bank Transfer',
+        icon: '🏦',
+        time: new Date().toLocaleString('en-LK'),
+        cashback: data.cashback
+      });
+      localStorage.setItem('qrpay_tx', JSON.stringify(transactions));
+      document.getElementById('amountInput').value = '';
+      document.getElementById('descInput').value = '';
+      showToast('✓ Payment saved — cashback Rs. ' + data.cashback.toFixed(2));
+    }
+  } catch(e) {
+    showToast('⚠️ Could not reach server');
+  }
+}
+}
+
+function renderHistory() {
+  const list = document.getElementById('txList');
+  if (!transactions.length) {
+    list.innerHTML = `<div class="empty-state"><div class="empty-icon">📭</div><p>No transactions yet</p></div>`;
+    return;
+  }
+  list.innerHTML = transactions.map(tx => `
+    <div class="tx-item">
+      <div class="tx-icon">${tx.icon}</div>
+      <div class="tx-info">
+        <div class="tx-desc">${tx.desc}</div>
+        <div class="tx-meta">${tx.method} · ${tx.time}</div>
+      </div>
+      <div class="tx-amount">Rs. ${parseFloat(tx.amount).toLocaleString('en-LK',{minimumFractionDigits:2})}</div>
+    </div>
+  `).join('');
+}
+
+function clearHistory() {
+  if (!confirm('Clear all transaction history?')) return;
+  transactions = [];
+  localStorage.setItem('qrpay_tx', '[]');
+  renderHistory();
+  showToast('✓ History cleared');
+}
+
+function shareQR() {
+  const canvas = document.querySelector('#qrcode canvas');
+  if (!canvas) { showToast('QR not ready'); return; }
+  canvas.toBlob(async blob => {
+    const file = new File([blob], 'qr-payment.png', { type: 'image/png' });
+    if (navigator.share) {
+      try {
+        await navigator.share({ files: [file], title: 'QR Payment', text: document.getElementById('modalAmount').textContent });
+      } catch(e) {}
+    } else {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = 'qr-payment.png'; a.click();
+      URL.revokeObjectURL(url);
+      showToast('✓ QR downloaded');
+    }
+  });
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+loadData();
+</script>
+</body>
+</html>
